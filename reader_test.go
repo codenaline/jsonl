@@ -7,7 +7,7 @@ import (
 )
 
 func TestReaderIteratesRawLines(t *testing.T) {
-	r := NewReader(strings.NewReader("{\"id\":1}\n{\"id\":2}\n"))
+	r := NewReader[struct{}](strings.NewReader("{\"id\":1}\n{\"id\":2}\n"))
 
 	var lines []string
 	var lineNums []int64
@@ -33,7 +33,7 @@ func TestReaderIteratesRawLines(t *testing.T) {
 
 func TestReaderSupportsCustomBufferSize(t *testing.T) {
 	input := strings.Repeat("x", 32) + "\n"
-	r := NewReader(strings.NewReader(input), WithBufferSize(8))
+	r := NewReader[struct{}](strings.NewReader(input), WithBufferSize(8))
 
 	if !r.Next() {
 		t.Fatalf("Next() = false, want true; err = %v", r.Err())
@@ -52,7 +52,7 @@ func TestReaderSupportsCustomBufferSize(t *testing.T) {
 }
 
 func TestReaderTracksLineStartOffset(t *testing.T) {
-	r := NewReader(strings.NewReader("aa\nbbb\ncccc\n"), WithBufferSize(2))
+	r := NewReader[struct{}](strings.NewReader("aa\nbbb\ncccc\n"), WithBufferSize(2))
 
 	var offsets []int64
 	for r.Next() {
@@ -66,5 +66,47 @@ func TestReaderTracksLineStartOffset(t *testing.T) {
 	want := []int64{0, 3, 7}
 	if !slices.Equal(offsets, want) {
 		t.Fatalf("offsets = %#v, want %#v", offsets, want)
+	}
+}
+
+type readerRecord struct {
+	ID int `json:"id"`
+}
+
+func TestReaderDecodesTypedValues(t *testing.T) {
+	r := NewReader[readerRecord](strings.NewReader("{\"id\":1}\n"))
+
+	if !r.Next() {
+		t.Fatalf("Next() = false, want true; err = %v", r.Err())
+	}
+
+	got, err := r.Value()
+	if err != nil {
+		t.Fatalf("Value() error = %v, want nil", err)
+	}
+	if got.ID != 1 {
+		t.Fatalf("Value().ID = %d, want 1", got.ID)
+	}
+}
+
+func TestReaderUsesCustomDecoder(t *testing.T) {
+	r := NewReader[readerRecord](
+		strings.NewReader("ignored\n"),
+		WithDecoder(func(_ []byte, v any) error {
+			v.(*readerRecord).ID = 42
+			return nil
+		}),
+	)
+
+	if !r.Next() {
+		t.Fatalf("Next() = false, want true; err = %v", r.Err())
+	}
+
+	got, err := r.Value()
+	if err != nil {
+		t.Fatalf("Value() error = %v, want nil", err)
+	}
+	if got.ID != 42 {
+		t.Fatalf("Value().ID = %d, want 42", got.ID)
 	}
 }

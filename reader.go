@@ -2,6 +2,7 @@ package jsonl
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"io"
 )
@@ -9,7 +10,7 @@ import (
 const defaultBufferSize = 64 * 1024
 
 // Reader streams raw JSON Lines records from an io.Reader.
-type Reader struct {
+type Reader[T any] struct {
 	r *bufio.Reader
 
 	line []byte
@@ -19,22 +20,27 @@ type Reader struct {
 	lineNum    int64
 	offset     int64
 	nextOffset int64
+	decoder    decoderFunc
 }
 
 // NewReader creates a reader for JSON Lines input.
-func NewReader(r io.Reader, opts ...Option) *Reader {
-	cfg := readerConfig{bufferSize: defaultBufferSize}
+func NewReader[T any](r io.Reader, opts ...Option) *Reader[T] {
+	cfg := readerConfig{
+		bufferSize: defaultBufferSize,
+		decoder:    json.Unmarshal,
+	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
-	return &Reader{
-		r: bufio.NewReaderSize(r, cfg.bufferSize),
+	return &Reader[T]{
+		r:       bufio.NewReaderSize(r, cfg.bufferSize),
+		decoder: cfg.decoder,
 	}
 }
 
 // Next advances the reader to the next line.
-func (r *Reader) Next() bool {
+func (r *Reader[T]) Next() bool {
 	start := r.nextOffset
 	line, err := r.readLine()
 	if err != nil {
@@ -54,7 +60,7 @@ func (r *Reader) Next() bool {
 	return true
 }
 
-func (r *Reader) readLine() ([]byte, error) {
+func (r *Reader[T]) readLine() ([]byte, error) {
 	r.buf = r.buf[:0]
 
 	for {
@@ -78,21 +84,30 @@ func trimLineEnding(line []byte) []byte {
 }
 
 // Bytes returns the raw bytes for the current JSON Lines record.
-func (r *Reader) Bytes() []byte {
+func (r *Reader[T]) Bytes() []byte {
 	return r.line
 }
 
 // Line returns the current 1-based input line number.
-func (r *Reader) Line() int64 {
+func (r *Reader[T]) Line() int64 {
 	return r.lineNum
 }
 
 // Offset returns the byte offset where the current line begins.
-func (r *Reader) Offset() int64 {
+func (r *Reader[T]) Offset() int64 {
 	return r.offset
 }
 
+// Value decodes the current JSON Lines record into T.
+func (r *Reader[T]) Value() (T, error) {
+	var v T
+	if err := r.decoder(r.line, &v); err != nil {
+		return v, err
+	}
+	return v, nil
+}
+
 // Err returns the terminal error that stopped iteration.
-func (r *Reader) Err() error {
+func (r *Reader[T]) Err() error {
 	return r.err
 }
