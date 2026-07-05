@@ -1,12 +1,13 @@
 # jsonl
 
-`jsonl` is a fast, streaming JSON Lines reader for Go.
+`jsonl` is a fast, streaming JSON Lines reader and writer for Go.
 
 It is built for large files, logs, ingestion pipelines, and datasets where memory use, line-level diagnostics, and decoder choice matter.
 
 ## ✨ Features
 
 - 🚀 Streaming reader with `bufio.ReadSlice`, not `bufio.Scanner`
+- ✍️ Buffered JSON Lines writer
 - 🧠 Copy-free short-line fast path
 - 📏 Optional `WithMaxLineSize` guard for untrusted input
 - 📍 Line and byte-offset tracking
@@ -66,6 +67,19 @@ func main() {
 	}
 }
 ```
+
+## ✍️ Writing
+
+```go
+var buf bytes.Buffer
+w := jsonl.NewWriter(&buf)
+
+_ = w.Write(Event{ID: 1, Name: "alice"})
+_ = w.WriteBytes([]byte(`{"id":2,"name":"bob"}`))
+_ = w.Flush()
+```
+
+Use `Write` for Go values and `WriteBytes` when you already have encoded JSON.
 
 ## 🔥 Hot Path API
 
@@ -138,4 +152,4 @@ func(data []byte, v any) error
 
 ## 🚧 Status
 
-Early development. The reader API is being hardened first; writer support will follow in later commits.
+Early development. The reader API is hardened first, and the buffered writer foundation is now available.
