@@ -17,11 +17,12 @@ type Reader[T any] struct {
 	buf  []byte
 	err  error
 
-	lineNum    int64
-	offset     int64
-	nextOffset int64
-	decoder    decoderFunc
-	bufferSize int
+	lineNum     int64
+	offset      int64
+	nextOffset  int64
+	decoder     decoderFunc
+	bufferSize  int
+	maxLineSize int
 }
 
 // NewReader creates a reader for JSON Lines input.
@@ -35,9 +36,10 @@ func NewReader[T any](r io.Reader, opts ...Option) *Reader[T] {
 	}
 
 	return &Reader[T]{
-		r:          bufio.NewReaderSize(r, cfg.bufferSize),
-		decoder:    cfg.decoder,
-		bufferSize: cfg.bufferSize,
+		r:           bufio.NewReaderSize(r, cfg.bufferSize),
+		decoder:     cfg.decoder,
+		bufferSize:  cfg.bufferSize,
+		maxLineSize: cfg.maxLineSize,
 	}
 }
 
@@ -63,9 +65,13 @@ func (r *Reader[T]) Next() bool {
 }
 
 func (r *Reader[T]) readLine() ([]byte, error) {
+	start := r.nextOffset
 	part, err := r.r.ReadSlice('\n')
 	r.nextOffset += int64(len(part))
 	if !errors.Is(err, bufio.ErrBufferFull) {
+		if tooLong := r.lineTooLong(start, len(part)); tooLong != nil {
+			return nil, tooLong
+		}
 		return part, err
 	}
 
@@ -74,13 +80,33 @@ func (r *Reader[T]) readLine() ([]byte, error) {
 		part, err = r.r.ReadSlice('\n')
 		r.buf = append(r.buf, part...)
 		r.nextOffset += int64(len(part))
+		if tooLong := r.lineTooLong(start, len(r.buf)); tooLong != nil {
+			r.shrinkBuffer()
+			return nil, tooLong
+		}
 		if err == nil || !errors.Is(err, bufio.ErrBufferFull) {
 			line := r.buf
-			if cap(r.buf) > r.bufferSize*4 {
-				r.buf = make([]byte, 0, r.bufferSize)
-			}
+			r.shrinkBuffer()
 			return line, err
 		}
+	}
+}
+
+func (r *Reader[T]) shrinkBuffer() {
+	if cap(r.buf) > r.bufferSize*4 {
+		r.buf = make([]byte, 0, r.bufferSize)
+	}
+}
+
+func (r *Reader[T]) lineTooLong(start int64, size int) error {
+	if r.maxLineSize <= 0 || size <= r.maxLineSize {
+		return nil
+	}
+	return &LineTooLongError{
+		Line:   r.lineNum + 1,
+		Offset: start,
+		Size:   size,
+		Max:    r.maxLineSize,
 	}
 }
 

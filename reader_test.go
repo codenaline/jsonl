@@ -182,3 +182,60 @@ func TestReaderShrinksOversizedAccumulationBuffer(t *testing.T) {
 		t.Fatalf("internal buffer capacity = %d, want <= %d after shrink", got, wantMax)
 	}
 }
+
+func TestReaderRejectsShortLineOverMaxSize(t *testing.T) {
+	r := NewReader[struct{}](
+		strings.NewReader("too-long\n"),
+		WithMaxLineSize(3),
+	)
+
+	if r.Next() {
+		t.Fatal("Next() = true, want false")
+	}
+
+	var lineErr *LineTooLongError
+	if !errors.As(r.Err(), &lineErr) {
+		t.Fatalf("Err() = %T, want *LineTooLongError", r.Err())
+	}
+	if lineErr.Line != 1 {
+		t.Fatalf("LineTooLongError.Line = %d, want 1", lineErr.Line)
+	}
+	if lineErr.Offset != 0 {
+		t.Fatalf("LineTooLongError.Offset = %d, want 0", lineErr.Offset)
+	}
+	if lineErr.Size != len("too-long\n") {
+		t.Fatalf("LineTooLongError.Size = %d, want %d", lineErr.Size, len("too-long\n"))
+	}
+	if lineErr.Max != 3 {
+		t.Fatalf("LineTooLongError.Max = %d, want 3", lineErr.Max)
+	}
+}
+
+func TestReaderRejectsAccumulatedLineOverMaxSize(t *testing.T) {
+	r := NewReader[struct{}](
+		strings.NewReader(strings.Repeat("x", 80)+"\n"),
+		WithBufferSize(8),
+		WithMaxLineSize(64),
+	)
+
+	if r.Next() {
+		t.Fatal("Next() = true, want false")
+	}
+
+	var lineErr *LineTooLongError
+	if !errors.As(r.Err(), &lineErr) {
+		t.Fatalf("Err() = %T, want *LineTooLongError", r.Err())
+	}
+	if lineErr.Line != 1 {
+		t.Fatalf("LineTooLongError.Line = %d, want 1", lineErr.Line)
+	}
+	if lineErr.Offset != 0 {
+		t.Fatalf("LineTooLongError.Offset = %d, want 0", lineErr.Offset)
+	}
+	if lineErr.Size <= lineErr.Max {
+		t.Fatalf("LineTooLongError.Size = %d, want > max %d", lineErr.Size, lineErr.Max)
+	}
+	if got, wantMax := cap(r.buf), 8; got > wantMax {
+		t.Fatalf("internal buffer capacity = %d, want <= %d after line-too-long error", got, wantMax)
+	}
+}
