@@ -28,3 +28,6 @@ false.
 `Value()` reports decode failures for the current record. A `Value()` error does
 not stop the iterator; callers can log or count the bad record and continue to
 the next line.
+
+For hot paths, use `DecodeInto(*T)` to decode into caller-owned storage and
+avoid creating a fresh result value for each record.

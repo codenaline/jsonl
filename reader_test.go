@@ -284,3 +284,29 @@ func TestReaderStopsAfterTerminalReadError(t *testing.T) {
 		t.Fatalf("Line() = %d, want 0 after failed read", r.Line())
 	}
 }
+
+func TestReaderDecodeIntoReusesCallerValue(t *testing.T) {
+	r := NewReader[readerRecord](strings.NewReader("{\"id\":1}\n{\"id\":2}\n"))
+	var rec readerRecord
+
+	if !r.Next() {
+		t.Fatalf("first Next() = false, want true; err = %v", r.Err())
+	}
+	if err := r.DecodeInto(&rec); err != nil {
+		t.Fatalf("first DecodeInto() error = %v, want nil", err)
+	}
+	if rec.ID != 1 {
+		t.Fatalf("first record ID = %d, want 1", rec.ID)
+	}
+
+	rec.ID = 0
+	if !r.Next() {
+		t.Fatalf("second Next() = false, want true; err = %v", r.Err())
+	}
+	if err := r.DecodeInto(&rec); err != nil {
+		t.Fatalf("second DecodeInto() error = %v, want nil", err)
+	}
+	if rec.ID != 2 {
+		t.Fatalf("second record ID = %d, want 2", rec.ID)
+	}
+}

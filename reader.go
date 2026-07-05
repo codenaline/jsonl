@@ -140,15 +140,23 @@ func (r *Reader[T]) Offset() int64 {
 	return r.offset
 }
 
-// Value decodes the current JSON Lines record into T.
-func (r *Reader[T]) Value() (T, error) {
-	var v T
-	if err := r.decoder(r.line, &v); err != nil {
-		return v, &DecodeError{
+// DecodeInto decodes the current JSON Lines record into dst.
+func (r *Reader[T]) DecodeInto(dst *T) error {
+	if err := r.decoder(r.line, dst); err != nil {
+		return &DecodeError{
 			Line:   r.lineNum,
 			Offset: r.offset,
 			Err:    err,
 		}
+	}
+	return nil
+}
+
+// Value decodes the current JSON Lines record into T.
+func (r *Reader[T]) Value() (T, error) {
+	var v T
+	if err := r.DecodeInto(&v); err != nil {
+		return v, err
 	}
 	return v, nil
 }
