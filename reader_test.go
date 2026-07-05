@@ -239,3 +239,48 @@ func TestReaderRejectsAccumulatedLineOverMaxSize(t *testing.T) {
 		t.Fatalf("internal buffer capacity = %d, want <= %d after line-too-long error", got, wantMax)
 	}
 }
+
+func TestReaderContinuesAfterDecodeError(t *testing.T) {
+	r := NewReader[readerRecord](strings.NewReader("{bad json}\n{\"id\":2}\n"))
+
+	if !r.Next() {
+		t.Fatalf("first Next() = false, want true; err = %v", r.Err())
+	}
+	if _, err := r.Value(); err == nil {
+		t.Fatal("first Value() error = nil, want decode error")
+	}
+
+	if !r.Next() {
+		t.Fatalf("second Next() = false, want true; err = %v", r.Err())
+	}
+	got, err := r.Value()
+	if err != nil {
+		t.Fatalf("second Value() error = %v, want nil", err)
+	}
+	if got.ID != 2 {
+		t.Fatalf("second Value().ID = %d, want 2", got.ID)
+	}
+	if err := r.Err(); err != nil {
+		t.Fatalf("Err() = %v, want nil", err)
+	}
+}
+
+func TestReaderStopsAfterTerminalReadError(t *testing.T) {
+	r := NewReader[struct{}](
+		strings.NewReader("too-long\nok\n"),
+		WithMaxLineSize(3),
+	)
+
+	if r.Next() {
+		t.Fatal("first Next() = true, want false")
+	}
+	if r.Err() == nil {
+		t.Fatal("Err() = nil, want terminal error")
+	}
+	if r.Next() {
+		t.Fatal("second Next() = true after terminal error, want false")
+	}
+	if r.Line() != 0 {
+		t.Fatalf("Line() = %d, want 0 after failed read", r.Line())
+	}
+}

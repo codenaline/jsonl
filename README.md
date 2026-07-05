@@ -15,3 +15,16 @@ first production goals are:
 
 Early development. Reader and writer APIs will be added in small, tested
 commits.
+
+## Error handling
+
+The reader separates stream errors from record decode errors.
+
+`Next()` reports stream-level failures. If reading fails, or a configured limit
+such as `WithMaxLineSize` is exceeded, `Next()` returns false and `Err()`
+returns the terminal error. After that, future calls to `Next()` also return
+false.
+
+`Value()` reports decode failures for the current record. A `Value()` error does
+not stop the iterator; callers can log or count the bad record and continue to
+the next line.

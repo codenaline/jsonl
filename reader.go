@@ -45,6 +45,10 @@ func NewReader[T any](r io.Reader, opts ...Option) *Reader[T] {
 
 // Next advances the reader to the next line.
 func (r *Reader[T]) Next() bool {
+	if r.err != nil {
+		return false
+	}
+
 	start := r.nextOffset
 	line, err := r.readLine()
 	if err != nil {
