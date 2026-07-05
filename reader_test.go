@@ -310,3 +310,26 @@ func TestReaderDecodeIntoReusesCallerValue(t *testing.T) {
 		t.Fatalf("second record ID = %d, want 2", rec.ID)
 	}
 }
+
+func TestReaderValueReturnsZeroOnDecodeError(t *testing.T) {
+	decodeErr := errors.New("decode failed")
+	r := NewReader[readerRecord](
+		strings.NewReader("ignored\n"),
+		WithDecoder(func(_ []byte, v any) error {
+			v.(*readerRecord).ID = 99
+			return decodeErr
+		}),
+	)
+
+	if !r.Next() {
+		t.Fatalf("Next() = false, want true; err = %v", r.Err())
+	}
+
+	got, err := r.Value()
+	if !errors.Is(err, decodeErr) {
+		t.Fatalf("Value() error = %v, want wrapped decode error", err)
+	}
+	if got.ID != 0 {
+		t.Fatalf("Value().ID = %d, want zero value on decode error", got.ID)
+	}
+}

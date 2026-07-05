@@ -156,7 +156,8 @@ func (r *Reader[T]) DecodeInto(dst *T) error {
 func (r *Reader[T]) Value() (T, error) {
 	var v T
 	if err := r.DecodeInto(&v); err != nil {
-		return v, err
+		var zero T
+		return zero, err
 	}
 	return v, nil
 }
