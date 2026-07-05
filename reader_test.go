@@ -333,3 +333,31 @@ func TestReaderValueReturnsZeroOnDecodeError(t *testing.T) {
 		t.Fatalf("Value().ID = %d, want zero value on decode error", got.ID)
 	}
 }
+
+func TestReaderDecodeIntoRejectsNilDestination(t *testing.T) {
+	r := NewReader[readerRecord](
+		strings.NewReader("{\"id\":1}\n"),
+		WithDecoder(func(_ []byte, v any) error {
+			if v == nil {
+				t.Fatal("decoder was called with nil destination")
+			}
+			return nil
+		}),
+	)
+
+	if !r.Next() {
+		t.Fatalf("Next() = false, want true; err = %v", r.Err())
+	}
+
+	err := r.DecodeInto(nil)
+	if err == nil {
+		t.Fatal("DecodeInto(nil) error = nil, want error")
+	}
+	if !errors.Is(err, ErrNilDecodeTarget) {
+		t.Fatalf("DecodeInto(nil) error = %v, want ErrNilDecodeTarget", err)
+	}
+	var decodeErr *DecodeError
+	if !errors.As(err, &decodeErr) {
+		t.Fatalf("DecodeInto(nil) error = %T, want *DecodeError", err)
+	}
+}

@@ -142,6 +142,14 @@ func (r *Reader[T]) Offset() int64 {
 
 // DecodeInto decodes the current JSON Lines record into dst.
 func (r *Reader[T]) DecodeInto(dst *T) error {
+	if dst == nil {
+		return &DecodeError{
+			Line:   r.lineNum,
+			Offset: r.offset,
+			Err:    ErrNilDecodeTarget,
+		}
+	}
+
 	if err := r.decoder(r.line, dst); err != nil {
 		return &DecodeError{
 			Line:   r.lineNum,

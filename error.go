@@ -1,6 +1,12 @@
 package jsonl
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrNilDecodeTarget is returned when DecodeInto receives a nil destination.
+var ErrNilDecodeTarget = errors.New("jsonl: decode target is nil")
 
 // DecodeError describes a failure to decode the current JSON Lines record.
 type DecodeError struct {

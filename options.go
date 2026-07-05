@@ -29,7 +29,7 @@ func WithMaxLineSize(n int) Option {
 	}
 }
 
-// WithDecoder replaces the JSON decoder used by Reader.Value.
+// WithDecoder replaces the JSON decoder used by Reader.Value and Reader.DecodeInto.
 func WithDecoder(fn func([]byte, any) error) Option {
 	return func(cfg *readerConfig) {
 		if fn != nil {
