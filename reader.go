@@ -21,6 +21,7 @@ type Reader[T any] struct {
 	offset     int64
 	nextOffset int64
 	decoder    decoderFunc
+	bufferSize int
 }
 
 // NewReader creates a reader for JSON Lines input.
@@ -34,8 +35,9 @@ func NewReader[T any](r io.Reader, opts ...Option) *Reader[T] {
 	}
 
 	return &Reader[T]{
-		r:       bufio.NewReaderSize(r, cfg.bufferSize),
-		decoder: cfg.decoder,
+		r:          bufio.NewReaderSize(r, cfg.bufferSize),
+		decoder:    cfg.decoder,
+		bufferSize: cfg.bufferSize,
 	}
 }
 
@@ -61,14 +63,23 @@ func (r *Reader[T]) Next() bool {
 }
 
 func (r *Reader[T]) readLine() ([]byte, error) {
-	r.buf = r.buf[:0]
+	part, err := r.r.ReadSlice('\n')
+	r.nextOffset += int64(len(part))
+	if !errors.Is(err, bufio.ErrBufferFull) {
+		return part, err
+	}
 
+	r.buf = append(r.buf[:0], part...)
 	for {
-		part, err := r.r.ReadSlice('\n')
+		part, err = r.r.ReadSlice('\n')
 		r.buf = append(r.buf, part...)
 		r.nextOffset += int64(len(part))
 		if err == nil || !errors.Is(err, bufio.ErrBufferFull) {
-			return r.buf, err
+			line := r.buf
+			if cap(r.buf) > r.bufferSize*4 {
+				r.buf = make([]byte, 0, r.bufferSize)
+			}
+			return line, err
 		}
 	}
 }
@@ -84,6 +95,7 @@ func trimLineEnding(line []byte) []byte {
 }
 
 // Bytes returns the raw bytes for the current JSON Lines record.
+// The returned slice is only valid until the next call to Next.
 func (r *Reader[T]) Bytes() []byte {
 	return r.line
 }

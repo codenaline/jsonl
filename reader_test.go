@@ -144,3 +144,41 @@ func TestReaderDecodeErrorIncludesLineAndOffset(t *testing.T) {
 		t.Fatal("DecodeError.Unwrap() = nil, want wrapped decoder error")
 	}
 }
+
+func TestReaderUsesReadSliceFastPathForShortLines(t *testing.T) {
+	r := NewReader[struct{}](strings.NewReader("short\n"), WithBufferSize(64))
+
+	if !r.Next() {
+		t.Fatalf("Next() = false, want true; err = %v", r.Err())
+	}
+	if string(r.Bytes()) != "short" {
+		t.Fatalf("Bytes() = %q, want short", r.Bytes())
+	}
+	if cap(r.buf) != 0 {
+		t.Fatalf("internal buffer capacity = %d, want 0 for short-line fast path", cap(r.buf))
+	}
+}
+
+func TestReaderShrinksOversizedAccumulationBuffer(t *testing.T) {
+	r := NewReader[struct{}](
+		strings.NewReader(strings.Repeat("x", 128)+"\nsmall\n"),
+		WithBufferSize(16),
+	)
+
+	if !r.Next() {
+		t.Fatalf("first Next() = false, want true; err = %v", r.Err())
+	}
+	if got := len(r.Bytes()); got != 128 {
+		t.Fatalf("first line length = %d, want 128", got)
+	}
+
+	if !r.Next() {
+		t.Fatalf("second Next() = false, want true; err = %v", r.Err())
+	}
+	if string(r.Bytes()) != "small" {
+		t.Fatalf("second line = %q, want small", r.Bytes())
+	}
+	if got, wantMax := cap(r.buf), 16; got > wantMax {
+		t.Fatalf("internal buffer capacity = %d, want <= %d after shrink", got, wantMax)
+	}
+}
