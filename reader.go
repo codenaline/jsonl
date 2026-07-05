@@ -102,7 +102,11 @@ func (r *Reader[T]) Offset() int64 {
 func (r *Reader[T]) Value() (T, error) {
 	var v T
 	if err := r.decoder(r.line, &v); err != nil {
-		return v, err
+		return v, &DecodeError{
+			Line:   r.lineNum,
+			Offset: r.offset,
+			Err:    err,
+		}
 	}
 	return v, nil
 }

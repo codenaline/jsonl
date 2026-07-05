@@ -1,6 +1,7 @@
 package jsonl
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -108,5 +109,38 @@ func TestReaderUsesCustomDecoder(t *testing.T) {
 	}
 	if got.ID != 42 {
 		t.Fatalf("Value().ID = %d, want 42", got.ID)
+	}
+}
+
+func TestReaderDecodeErrorIncludesLineAndOffset(t *testing.T) {
+	r := NewReader[readerRecord](strings.NewReader("{\"id\":1}\n{bad json}\n"))
+
+	if !r.Next() {
+		t.Fatalf("first Next() = false, want true; err = %v", r.Err())
+	}
+	if _, err := r.Value(); err != nil {
+		t.Fatalf("first Value() error = %v, want nil", err)
+	}
+
+	if !r.Next() {
+		t.Fatalf("second Next() = false, want true; err = %v", r.Err())
+	}
+	_, err := r.Value()
+	if err == nil {
+		t.Fatal("second Value() error = nil, want error")
+	}
+
+	var decodeErr *DecodeError
+	if !errors.As(err, &decodeErr) {
+		t.Fatalf("Value() error type = %T, want *DecodeError", err)
+	}
+	if decodeErr.Line != 2 {
+		t.Fatalf("DecodeError.Line = %d, want 2", decodeErr.Line)
+	}
+	if decodeErr.Offset != int64(len("{\"id\":1}\n")) {
+		t.Fatalf("DecodeError.Offset = %d, want %d", decodeErr.Offset, len("{\"id\":1}\n"))
+	}
+	if decodeErr.Unwrap() == nil {
+		t.Fatal("DecodeError.Unwrap() = nil, want wrapped decoder error")
 	}
 }
