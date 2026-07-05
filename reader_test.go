@@ -50,3 +50,21 @@ func TestReaderSupportsCustomBufferSize(t *testing.T) {
 		t.Fatalf("Err() = %v, want nil", err)
 	}
 }
+
+func TestReaderTracksLineStartOffset(t *testing.T) {
+	r := NewReader(strings.NewReader("aa\nbbb\ncccc\n"), WithBufferSize(2))
+
+	var offsets []int64
+	for r.Next() {
+		offsets = append(offsets, r.Offset())
+	}
+
+	if err := r.Err(); err != nil {
+		t.Fatalf("Err() = %v, want nil", err)
+	}
+
+	want := []int64{0, 3, 7}
+	if !slices.Equal(offsets, want) {
+		t.Fatalf("offsets = %#v, want %#v", offsets, want)
+	}
+}

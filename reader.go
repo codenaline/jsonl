@@ -16,7 +16,9 @@ type Reader struct {
 	buf  []byte
 	err  error
 
-	lineNum int64
+	lineNum    int64
+	offset     int64
+	nextOffset int64
 }
 
 // NewReader creates a reader for JSON Lines input.
@@ -33,6 +35,7 @@ func NewReader(r io.Reader, opts ...Option) *Reader {
 
 // Next advances the reader to the next line.
 func (r *Reader) Next() bool {
+	start := r.nextOffset
 	line, err := r.readLine()
 	if err != nil {
 		if errors.Is(err, io.EOF) && len(line) == 0 {
@@ -46,6 +49,7 @@ func (r *Reader) Next() bool {
 	}
 
 	r.lineNum++
+	r.offset = start
 	r.line = trimLineEnding(line)
 	return true
 }
@@ -56,6 +60,7 @@ func (r *Reader) readLine() ([]byte, error) {
 	for {
 		part, err := r.r.ReadSlice('\n')
 		r.buf = append(r.buf, part...)
+		r.nextOffset += int64(len(part))
 		if err == nil || !errors.Is(err, bufio.ErrBufferFull) {
 			return r.buf, err
 		}
@@ -80,6 +85,11 @@ func (r *Reader) Bytes() []byte {
 // Line returns the current 1-based input line number.
 func (r *Reader) Line() int64 {
 	return r.lineNum
+}
+
+// Offset returns the byte offset where the current line begins.
+func (r *Reader) Offset() int64 {
+	return r.offset
 }
 
 // Err returns the terminal error that stopped iteration.
