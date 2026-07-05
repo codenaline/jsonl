@@ -30,3 +30,23 @@ func TestReaderIteratesRawLines(t *testing.T) {
 		t.Fatalf("line numbers = %#v, want %#v", lineNums, wantLineNums)
 	}
 }
+
+func TestReaderSupportsCustomBufferSize(t *testing.T) {
+	input := strings.Repeat("x", 32) + "\n"
+	r := NewReader(strings.NewReader(input), WithBufferSize(8))
+
+	if !r.Next() {
+		t.Fatalf("Next() = false, want true; err = %v", r.Err())
+	}
+
+	if got := string(r.Bytes()); got != strings.Repeat("x", 32) {
+		t.Fatalf("Bytes() length = %d, want 32", len(got))
+	}
+
+	if r.Next() {
+		t.Fatal("Next() = true, want false")
+	}
+	if err := r.Err(); err != nil {
+		t.Fatalf("Err() = %v, want nil", err)
+	}
+}

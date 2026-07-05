@@ -20,9 +20,14 @@ type Reader struct {
 }
 
 // NewReader creates a reader for JSON Lines input.
-func NewReader(r io.Reader) *Reader {
+func NewReader(r io.Reader, opts ...Option) *Reader {
+	cfg := readerConfig{bufferSize: defaultBufferSize}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	return &Reader{
-		r: bufio.NewReaderSize(r, defaultBufferSize),
+		r: bufio.NewReaderSize(r, cfg.bufferSize),
 	}
 }
 
