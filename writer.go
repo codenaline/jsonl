@@ -8,19 +8,29 @@ import (
 
 // Writer writes JSON Lines records to an io.Writer.
 type Writer struct {
-	w *bufio.Writer
+	w       *bufio.Writer
+	marshal marshalFunc
 }
 
 // NewWriter creates a buffered JSON Lines writer.
-func NewWriter(w io.Writer) *Writer {
+func NewWriter(w io.Writer, opts ...WriterOption) *Writer {
+	cfg := writerConfig{
+		bufferSize: defaultBufferSize,
+		marshal:    json.Marshal,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	return &Writer{
-		w: bufio.NewWriterSize(w, defaultBufferSize),
+		w:       bufio.NewWriterSize(w, cfg.bufferSize),
+		marshal: cfg.marshal,
 	}
 }
 
 // Write marshals v as JSON and writes it as one JSON Lines record.
 func (w *Writer) Write(v any) error {
-	b, err := json.Marshal(v)
+	b, err := w.marshal(v)
 	if err != nil {
 		return err
 	}
