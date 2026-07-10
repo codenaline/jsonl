@@ -1,12 +1,59 @@
 # 📦 jsonl
 
-A professional Go package for reading and writing **JSON Lines** streams.
+A fast, streaming Go package for reading and writing **JSON Lines**.
 
-It is built for large files, logs, ingestion pipelines, and datasets where memory use, line-level diagnostics, and decoder choice matter.
+It is designed for logs, datasets, ingestion pipelines, and large files where memory use, line-level diagnostics, and decoder choice matter.
 
 ---
 
-## 🚀 Features
+## 📥 Installation
+
+```bash
+go get github.com/codenaline/jsonl
+```
+
+---
+
+## 🚀 Quick Start
+
+```go
+package main
+
+import (
+	"log"
+	"strings"
+
+	"github.com/codenaline/jsonl"
+)
+
+type Event struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+func main() {
+	input := strings.NewReader("{\"id\":1,\"name\":\"alice\"}\n{\"id\":2,\"name\":\"bob\"}\n")
+	r := jsonl.NewReader[Event](input)
+
+	for r.Next() {
+		event, err := r.Value()
+		if err != nil {
+			log.Printf("bad record at line %d offset %d: %v", r.Line(), r.Offset(), err)
+			continue
+		}
+
+		log.Printf("event: %+v", event)
+	}
+
+	if err := r.Err(); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+
+---
+
+## ✨ Features
 
 - Streaming reader powered by `bufio.ReadSlice`, not `bufio.Scanner`
 - Generic `Reader[T]` for typed JSON Lines records
@@ -23,64 +70,38 @@ It is built for large files, logs, ingestion pipelines, and datasets where memor
 
 ---
 
-## 📥 Installation
-
-```bash
-go get github.com/codenaline/jsonl
-```
-
----
-
 ## 🛠️ Reading
 
-Create a reader for any `io.Reader`:
+Create a reader from any `io.Reader`:
 
 ```go
-package main
+f, err := os.Open("events.jsonl")
+if err != nil {
+	log.Fatal(err)
+}
+defer f.Close()
 
-import (
-	"log"
-	"os"
-
-	"github.com/codenaline/jsonl"
+r := jsonl.NewReader[Event](
+	f,
+	jsonl.WithMaxLineSize(8*1024*1024),
 )
 
-type Event struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+for r.Next() {
+	event, err := r.Value()
+	if err != nil {
+		log.Printf("bad record at line %d offset %d: %v", r.Line(), r.Offset(), err)
+		continue
+	}
+
+	process(event)
 }
 
-func main() {
-	f, err := os.Open("events.jsonl")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	r := jsonl.NewReader[Event](
-		f,
-		jsonl.WithMaxLineSize(8*1024*1024),
-	)
-
-	for r.Next() {
-		event, err := r.Value()
-		if err != nil {
-			log.Printf("bad record at line %d offset %d: %v", r.Line(), r.Offset(), err)
-			continue
-		}
-
-		_ = event
-	}
-
-	if err := r.Err(); err != nil {
-		log.Fatal(err)
-	}
+if err := r.Err(); err != nil {
+	log.Fatal(err)
 }
 ```
 
-Each call to `Next()` advances to the next JSON Lines record.
-
-Decode errors from `Value()` do not stop iteration, so bad records can be logged while valid records continue processing.
+Each call to `Next()` advances to the next JSON Lines record. Decode errors from `Value()` do not stop iteration, so bad records can be logged while valid records continue processing.
 
 ---
 
@@ -100,15 +121,13 @@ for r.Next() {
 }
 ```
 
-`Value()` is the ergonomic API.
-
-`DecodeInto(*T)` is the high-throughput API.
+`Value()` is the ergonomic API. `DecodeInto(*T)` is the high-throughput API.
 
 ---
 
 ## ✍️ Writing
 
-Create a buffered writer for any `io.Writer`:
+Create a buffered writer from any `io.Writer`:
 
 ```go
 var buf bytes.Buffer
@@ -119,15 +138,13 @@ _ = w.WriteBytes([]byte(`{"id":2,"name":"bob"}`))
 _ = w.Flush()
 ```
 
-Use `Write` when you have a Go value.
-
-Use `WriteBytes` when you already have encoded JSON bytes.
+Use `Write` when you have a Go value. Use `WriteBytes` when you already have encoded JSON bytes.
 
 ---
 
 ## ⚙️ Options
 
-Reader options:
+### Reader Options
 
 ```go
 jsonl.WithBufferSize(128 * 1024)
@@ -135,7 +152,7 @@ jsonl.WithMaxLineSize(8 * 1024 * 1024)
 jsonl.WithDecoder(customUnmarshal)
 ```
 
-Writer options:
+### Writer Options
 
 ```go
 jsonl.WithWriterBufferSize(128 * 1024)
@@ -166,6 +183,18 @@ func(v any) ([]byte, error)
 
 ---
 
+## 🧯 Error Handling
+
+The reader separates stream errors from record decode errors.
+
+- `Next()` reports stream-level failures through `Err()`.
+- `Value()` and `DecodeInto()` report decode failures for the current record.
+- Decode failures do not stop the iterator.
+- `Value()` returns the zero value of `T` on decode failure.
+- `DecodeInto(*T)` may leave caller-owned storage partially mutated if a decoder fails.
+
+---
+
 ## 🔒 Safety
 
 For trusted local files, the default reader is unlimited and avoids imposing arbitrary limits.
@@ -176,21 +205,7 @@ For untrusted input, network streams, or user uploads, set `WithMaxLineSize`:
 r := jsonl.NewReader[Event](reader, jsonl.WithMaxLineSize(8*1024*1024))
 ```
 
-This prevents a single oversized line from forcing unbounded memory growth.
-
-Oversized accumulated buffers are shrunk back after large records or line-size failures.
-
----
-
-## 🧯 Error Handling
-
-The reader separates stream errors from record decode errors.
-
-- `Next()` reports stream-level failures through `Err()`.
-- `Value()` and `DecodeInto()` report decode failures for the current record.
-- Decode failures do not stop the iterator.
-- `Value()` returns the zero value of `T` on decode failure.
-- `DecodeInto(*T)` may leave caller-owned storage partially mutated if a decoder fails.
+This prevents a single oversized line from forcing unbounded memory growth. Oversized accumulated buffers are shrunk back after large records or line-size failures.
 
 ---
 
@@ -216,17 +231,6 @@ go test -bench=. -benchmem -run=^$ ./...
 
 ## 🧪 Testing
 
-This package ships with tests for:
-
-- Reader iteration and raw byte access
-- Typed decoding with `Value`
-- Caller-owned decoding with `DecodeInto`
-- Decode error wrapping and recovery
-- Maximum line size enforcement
-- Writer buffering and flushing
-- Writer options and custom marshal functions
-- Go doc examples
-
 Run the test suite:
 
 ```bash
@@ -239,18 +243,13 @@ Run vet:
 go vet ./...
 ```
 
+This package includes tests for reader iteration, typed decoding, `DecodeInto`, decode error recovery, maximum line size enforcement, writer buffering, writer options, custom marshal functions, and Go doc examples.
+
 ---
 
-## 📌 Summary
+## 📌 Status
 
-- Reads and writes JSON Lines streams
-- Supports typed generic readers
-- Tracks line numbers and byte offsets
-- Allows recoverable per-record decode errors
-- Provides hot-path decoding through `DecodeInto`
-- Supports custom decoder and marshal functions
-- Includes reader and writer benchmarks
-- Ready for `v0.1.0` release review
+`jsonl` is preparing for its first `v0.1.0` release. Reader and writer APIs are implemented, documented, and benchmarked; public option names should be reviewed before tagging.
 
 ---
 
