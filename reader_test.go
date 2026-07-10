@@ -32,6 +32,64 @@ func TestReaderIteratesRawLines(t *testing.T) {
 	}
 }
 
+func TestReaderReadsFinalLineWithoutNewline(t *testing.T) {
+	r := NewReader[struct{}](strings.NewReader("{\"id\":1}"))
+
+	if !r.Next() {
+		t.Fatalf("Next() = false, want true; err = %v", r.Err())
+	}
+	if got, want := string(r.Bytes()), `{"id":1}`; got != want {
+		t.Fatalf("Bytes() = %q, want %q", got, want)
+	}
+	if r.Next() {
+		t.Fatal("Next() = true, want false")
+	}
+	if err := r.Err(); err != nil {
+		t.Fatalf("Err() = %v, want nil", err)
+	}
+}
+
+func TestReaderTrimsCRLFLineEndings(t *testing.T) {
+	r := NewReader[struct{}](strings.NewReader("first\r\nsecond\r\n"))
+
+	var lines []string
+	for r.Next() {
+		lines = append(lines, string(r.Bytes()))
+	}
+	if err := r.Err(); err != nil {
+		t.Fatalf("Err() = %v, want nil", err)
+	}
+
+	want := []string{"first", "second"}
+	if !slices.Equal(lines, want) {
+		t.Fatalf("lines = %#v, want %#v", lines, want)
+	}
+}
+
+func TestReaderPreservesEmptyLines(t *testing.T) {
+	r := NewReader[readerRecord](strings.NewReader("\n{\"id\":1}\n"))
+
+	if !r.Next() {
+		t.Fatalf("first Next() = false, want true; err = %v", r.Err())
+	}
+	if got := string(r.Bytes()); got != "" {
+		t.Fatalf("first Bytes() = %q, want empty", got)
+	}
+	if _, err := r.Value(); err == nil {
+		t.Fatal("Value() error = nil, want decode error for empty JSON Lines record")
+	}
+
+	if !r.Next() {
+		t.Fatalf("second Next() = false, want true; err = %v", r.Err())
+	}
+	if got, want := string(r.Bytes()), `{"id":1}`; got != want {
+		t.Fatalf("second Bytes() = %q, want %q", got, want)
+	}
+	if err := r.Err(); err != nil {
+		t.Fatalf("Err() = %v, want nil", err)
+	}
+}
+
 func TestReaderSupportsCustomBufferSize(t *testing.T) {
 	input := strings.Repeat("x", 32) + "\n"
 	r := NewReader[struct{}](strings.NewReader(input), WithReaderBufferSize(8))
@@ -49,6 +107,20 @@ func TestReaderSupportsCustomBufferSize(t *testing.T) {
 	}
 	if err := r.Err(); err != nil {
 		t.Fatalf("Err() = %v, want nil", err)
+	}
+}
+
+func TestReaderIgnoresNonPositiveBufferSize(t *testing.T) {
+	r := NewReader[struct{}](strings.NewReader("ok\n"), WithReaderBufferSize(0))
+
+	if !r.Next() {
+		t.Fatalf("Next() = false, want true; err = %v", r.Err())
+	}
+	if got := string(r.Bytes()); got != "ok" {
+		t.Fatalf("Bytes() = %q, want ok", got)
+	}
+	if r.bufferSize != defaultBufferSize {
+		t.Fatalf("bufferSize = %d, want default %d", r.bufferSize, defaultBufferSize)
 	}
 }
 
@@ -109,6 +181,24 @@ func TestReaderUsesCustomUnmarshal(t *testing.T) {
 	}
 	if got.ID != 42 {
 		t.Fatalf("Value().ID = %d, want 42", got.ID)
+	}
+}
+
+func TestReaderIgnoresNilUnmarshal(t *testing.T) {
+	r := NewReader[readerRecord](
+		strings.NewReader("{\"id\":7}\n"),
+		WithUnmarshal(nil),
+	)
+
+	if !r.Next() {
+		t.Fatalf("Next() = false, want true; err = %v", r.Err())
+	}
+	got, err := r.Value()
+	if err != nil {
+		t.Fatalf("Value() error = %v, want nil", err)
+	}
+	if got.ID != 7 {
+		t.Fatalf("Value().ID = %d, want 7", got.ID)
 	}
 }
 

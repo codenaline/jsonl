@@ -185,7 +185,7 @@ func(v any) ([]byte, error)
 
 ## 🧯 Error Handling
 
-The reader separates stream errors from record decode errors.
+The reader separates stream errors from record decode errors. Empty lines are preserved as records and will return a decode error when decoded as JSON.
 
 - `Next()` reports stream-level failures through `Err()`.
 - `Value()` and `DecodeInto()` report decode failures for the current record.
@@ -214,11 +214,11 @@ This prevents a single oversized line from forcing unbounded memory growth. Over
 Current baseline on Linux amd64, Intel i5-1135G7:
 
 ```text
-BenchmarkReaderRawLines-8      21684 ns/op  1227.84 MB/s   65832 B/op      5 allocs/op
-BenchmarkReaderValue-8       656898 ns/op    40.53 MB/s  319785 B/op   6149 allocs/op
-BenchmarkReaderDecodeInto-8  644326 ns/op    41.32 MB/s  295233 B/op   5126 allocs/op
-BenchmarkWriterWrite-8       159367 ns/op   167.06 MB/s   98431 B/op   1028 allocs/op
-BenchmarkWriterWriteBytes-8   14699 ns/op  1811.34 MB/s   65632 B/op      4 allocs/op
+BenchmarkReaderRawLines-8      21732 ns/op  1225.09 MB/s   65832 B/op      5 allocs/op
+BenchmarkReaderValue-8       673061 ns/op    39.56 MB/s  319785 B/op   6149 allocs/op
+BenchmarkReaderDecodeInto-8  665572 ns/op    40.00 MB/s  295233 B/op   5126 allocs/op
+BenchmarkWriterWrite-8       169683 ns/op   156.90 MB/s   98431 B/op   1028 allocs/op
+BenchmarkWriterWriteBytes-8   14848 ns/op  1793.16 MB/s   65632 B/op      4 allocs/op
 ```
 
 Run benchmarks locally:
@@ -249,7 +249,7 @@ This package includes tests for reader iteration, typed decoding, `DecodeInto`, 
 
 ## 📌 Status
 
-`jsonl` is preparing for its first `v0.1.0` release. Reader and writer APIs are implemented, documented, and benchmarked; public option names should be reviewed before tagging.
+`jsonl` is ready for the first `v0.1.0` release tag. Reader and writer APIs are implemented, documented, benchmarked, and covered by release-hardening tests.
 
 ---
 

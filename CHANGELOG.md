@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## v0.1.0 - Unreleased
+## v0.1.0 - 2026-07-10
 
 ### Added
 
@@ -13,8 +13,9 @@ All notable changes to this project will be documented in this file.
 - Configurable writer buffer size and marshal function.
 - Reader and writer benchmarks.
 - Go doc examples for reader, `DecodeInto`, and writer usage.
+- Release-hardening tests for EOF, CRLF, empty lines, no-op options, and writer error propagation.
 
 ### Notes
 
 - This is the first planned public release.
-- The public API should be reviewed before tagging `v0.1.0`.
+- Public option names were reviewed before tagging `v0.1.0`.
