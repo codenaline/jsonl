@@ -1,16 +1,16 @@
 package jsonl
 
-// Option configures a Reader.
-type Option func(*readerConfig)
+// ReaderOption configures a Reader.
+type ReaderOption func(*readerConfig)
 
-type decoderFunc func([]byte, any) error
+type unmarshalFunc func([]byte, any) error
 
 type marshalFunc func(any) ([]byte, error)
 
 type readerConfig struct {
 	bufferSize  int
 	maxLineSize int
-	decoder     decoderFunc
+	unmarshal   unmarshalFunc
 }
 
 type writerConfig struct {
@@ -18,8 +18,8 @@ type writerConfig struct {
 	marshal    marshalFunc
 }
 
-// WithBufferSize sets the internal buffered reader size.
-func WithBufferSize(n int) Option {
+// WithReaderBufferSize sets the internal buffered reader size.
+func WithReaderBufferSize(n int) ReaderOption {
 	return func(cfg *readerConfig) {
 		if n > 0 {
 			cfg.bufferSize = n
@@ -28,7 +28,7 @@ func WithBufferSize(n int) Option {
 }
 
 // WithMaxLineSize sets the maximum allowed raw line size in bytes.
-func WithMaxLineSize(n int) Option {
+func WithMaxLineSize(n int) ReaderOption {
 	return func(cfg *readerConfig) {
 		if n > 0 {
 			cfg.maxLineSize = n
@@ -36,11 +36,11 @@ func WithMaxLineSize(n int) Option {
 	}
 }
 
-// WithDecoder replaces the JSON decoder used by Reader.Value and Reader.DecodeInto.
-func WithDecoder(fn func([]byte, any) error) Option {
+// WithUnmarshal replaces the JSON unmarshal used by Reader.Value and Reader.DecodeInto.
+func WithUnmarshal(fn func([]byte, any) error) ReaderOption {
 	return func(cfg *readerConfig) {
 		if fn != nil {
-			cfg.decoder = fn
+			cfg.unmarshal = fn
 		}
 	}
 }

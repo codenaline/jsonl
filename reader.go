@@ -20,16 +20,16 @@ type Reader[T any] struct {
 	lineNum     int64
 	offset      int64
 	nextOffset  int64
-	decoder     decoderFunc
+	unmarshal   unmarshalFunc
 	bufferSize  int
 	maxLineSize int
 }
 
 // NewReader creates a reader for JSON Lines input.
-func NewReader[T any](r io.Reader, opts ...Option) *Reader[T] {
+func NewReader[T any](r io.Reader, opts ...ReaderOption) *Reader[T] {
 	cfg := readerConfig{
 		bufferSize: defaultBufferSize,
-		decoder:    json.Unmarshal,
+		unmarshal:  json.Unmarshal,
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -37,7 +37,7 @@ func NewReader[T any](r io.Reader, opts ...Option) *Reader[T] {
 
 	return &Reader[T]{
 		r:           bufio.NewReaderSize(r, cfg.bufferSize),
-		decoder:     cfg.decoder,
+		unmarshal:   cfg.unmarshal,
 		bufferSize:  cfg.bufferSize,
 		maxLineSize: cfg.maxLineSize,
 	}
@@ -150,7 +150,7 @@ func (r *Reader[T]) DecodeInto(dst *T) error {
 		}
 	}
 
-	if err := r.decoder(r.line, dst); err != nil {
+	if err := r.unmarshal(r.line, dst); err != nil {
 		return &DecodeError{
 			Line:   r.lineNum,
 			Offset: r.offset,

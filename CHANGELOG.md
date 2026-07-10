@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 - Streaming generic JSON Lines reader with line and byte-offset tracking.
 - `DecodeInto` for caller-owned value reuse.
-- Configurable reader buffer size, maximum line size, and decoder function.
+- Configurable reader buffer size, maximum line size, and unmarshal function.
 - Buffered JSON Lines writer with value and pre-encoded byte APIs.
 - Configurable writer buffer size and marshal function.
 - Reader and writer benchmarks.

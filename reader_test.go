@@ -34,7 +34,7 @@ func TestReaderIteratesRawLines(t *testing.T) {
 
 func TestReaderSupportsCustomBufferSize(t *testing.T) {
 	input := strings.Repeat("x", 32) + "\n"
-	r := NewReader[struct{}](strings.NewReader(input), WithBufferSize(8))
+	r := NewReader[struct{}](strings.NewReader(input), WithReaderBufferSize(8))
 
 	if !r.Next() {
 		t.Fatalf("Next() = false, want true; err = %v", r.Err())
@@ -53,7 +53,7 @@ func TestReaderSupportsCustomBufferSize(t *testing.T) {
 }
 
 func TestReaderTracksLineStartOffset(t *testing.T) {
-	r := NewReader[struct{}](strings.NewReader("aa\nbbb\ncccc\n"), WithBufferSize(2))
+	r := NewReader[struct{}](strings.NewReader("aa\nbbb\ncccc\n"), WithReaderBufferSize(2))
 
 	var offsets []int64
 	for r.Next() {
@@ -90,10 +90,10 @@ func TestReaderDecodesTypedValues(t *testing.T) {
 	}
 }
 
-func TestReaderUsesCustomDecoder(t *testing.T) {
+func TestReaderUsesCustomUnmarshal(t *testing.T) {
 	r := NewReader[readerRecord](
 		strings.NewReader("ignored\n"),
-		WithDecoder(func(_ []byte, v any) error {
+		WithUnmarshal(func(_ []byte, v any) error {
 			v.(*readerRecord).ID = 42
 			return nil
 		}),
@@ -141,12 +141,12 @@ func TestReaderDecodeErrorIncludesLineAndOffset(t *testing.T) {
 		t.Fatalf("DecodeError.Offset = %d, want %d", decodeErr.Offset, len("{\"id\":1}\n"))
 	}
 	if decodeErr.Unwrap() == nil {
-		t.Fatal("DecodeError.Unwrap() = nil, want wrapped decoder error")
+		t.Fatal("DecodeError.Unwrap() = nil, want wrapped unmarshal error")
 	}
 }
 
 func TestReaderUsesReadSliceFastPathForShortLines(t *testing.T) {
-	r := NewReader[struct{}](strings.NewReader("short\n"), WithBufferSize(64))
+	r := NewReader[struct{}](strings.NewReader("short\n"), WithReaderBufferSize(64))
 
 	if !r.Next() {
 		t.Fatalf("Next() = false, want true; err = %v", r.Err())
@@ -162,7 +162,7 @@ func TestReaderUsesReadSliceFastPathForShortLines(t *testing.T) {
 func TestReaderShrinksOversizedAccumulationBuffer(t *testing.T) {
 	r := NewReader[struct{}](
 		strings.NewReader(strings.Repeat("x", 128)+"\nsmall\n"),
-		WithBufferSize(16),
+		WithReaderBufferSize(16),
 	)
 
 	if !r.Next() {
@@ -214,7 +214,7 @@ func TestReaderRejectsShortLineOverMaxSize(t *testing.T) {
 func TestReaderRejectsAccumulatedLineOverMaxSize(t *testing.T) {
 	r := NewReader[struct{}](
 		strings.NewReader(strings.Repeat("x", 80)+"\n"),
-		WithBufferSize(8),
+		WithReaderBufferSize(8),
 		WithMaxLineSize(64),
 	)
 
@@ -315,7 +315,7 @@ func TestReaderValueReturnsZeroOnDecodeError(t *testing.T) {
 	decodeErr := errors.New("decode failed")
 	r := NewReader[readerRecord](
 		strings.NewReader("ignored\n"),
-		WithDecoder(func(_ []byte, v any) error {
+		WithUnmarshal(func(_ []byte, v any) error {
 			v.(*readerRecord).ID = 99
 			return decodeErr
 		}),
@@ -337,9 +337,9 @@ func TestReaderValueReturnsZeroOnDecodeError(t *testing.T) {
 func TestReaderDecodeIntoRejectsNilDestination(t *testing.T) {
 	r := NewReader[readerRecord](
 		strings.NewReader("{\"id\":1}\n"),
-		WithDecoder(func(_ []byte, v any) error {
+		WithUnmarshal(func(_ []byte, v any) error {
 			if v == nil {
-				t.Fatal("decoder was called with nil destination")
+				t.Fatal("custom unmarshal was called with nil destination")
 			}
 			return nil
 		}),

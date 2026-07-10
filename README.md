@@ -2,7 +2,7 @@
 
 A fast, streaming Go package for reading and writing **JSON Lines**.
 
-It is designed for logs, datasets, ingestion pipelines, and large files where memory use, line-level diagnostics, and decoder choice matter.
+It is designed for logs, datasets, ingestion pipelines, and large files where memory use, line-level diagnostics, and JSON decoding choice matter.
 
 ---
 
@@ -62,7 +62,7 @@ func main() {
 - `DecodeInto(*T)` for caller-owned object reuse on hot paths
 - Recoverable per-record decode errors
 - Optional `WithMaxLineSize` guard for untrusted input
-- Custom decoder support through `WithDecoder`
+- Custom JSON unmarshal support through `WithUnmarshal`
 - Buffered JSON Lines writer
 - `Write` for Go values and `WriteBytes` for pre-encoded JSON
 - Custom writer marshal support through `WithMarshal`
@@ -147,9 +147,9 @@ Use `Write` when you have a Go value. Use `WriteBytes` when you already have enc
 ### Reader Options
 
 ```go
-jsonl.WithBufferSize(128 * 1024)
+jsonl.WithReaderBufferSize(128 * 1024)
 jsonl.WithMaxLineSize(8 * 1024 * 1024)
-jsonl.WithDecoder(customUnmarshal)
+jsonl.WithUnmarshal(customUnmarshal)
 ```
 
 ### Writer Options
@@ -163,13 +163,13 @@ jsonl.WithMarshal(customMarshal)
 
 | API | Option | Purpose |
 | --- | --- | --- |
-| `NewReader[T]` | `WithBufferSize` | Set the internal reader buffer size. |
+| `NewReader[T]` | `WithReaderBufferSize` | Set the internal reader buffer size. |
 | `NewReader[T]` | `WithMaxLineSize` | Reject lines larger than the configured limit. |
-| `NewReader[T]` | `WithDecoder` | Replace `encoding/json.Unmarshal`. |
+| `NewReader[T]` | `WithUnmarshal` | Replace `encoding/json.Unmarshal`. |
 | `NewWriter` | `WithWriterBufferSize` | Set the internal writer buffer size. |
 | `NewWriter` | `WithMarshal` | Replace `encoding/json.Marshal`. |
 
-`WithDecoder` accepts functions with the same shape as `encoding/json.Unmarshal`:
+`WithUnmarshal` accepts functions with the same shape as `encoding/json.Unmarshal`:
 
 ```go
 func(data []byte, v any) error
@@ -191,7 +191,7 @@ The reader separates stream errors from record decode errors.
 - `Value()` and `DecodeInto()` report decode failures for the current record.
 - Decode failures do not stop the iterator.
 - `Value()` returns the zero value of `T` on decode failure.
-- `DecodeInto(*T)` may leave caller-owned storage partially mutated if a decoder fails.
+- `DecodeInto(*T)` may leave caller-owned storage partially mutated if unmarshaling fails.
 
 ---
 
